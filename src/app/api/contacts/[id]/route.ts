@@ -1,7 +1,10 @@
 import { connectDb } from "@/lib/db";
 import { normalizePhone } from "@/lib/phone";
 import { Contact } from "@/models/Contact";
+import { logError, logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
+
+const log = logger.child({ module: "api.contacts.id" });
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +41,7 @@ export async function PATCH(
       },
     });
   } catch (error) {
-    console.error("Update contact error:", error);
+    logError(log, "Update contact failed", error);
     return NextResponse.json({ error: "Failed to update contact" }, { status: 400 });
   }
 }
@@ -55,7 +58,7 @@ export async function DELETE(
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Delete contact error:", error);
+    logError(log, "Delete contact failed", error);
     return NextResponse.json({ error: "Failed to delete contact" }, { status: 500 });
   }
 }

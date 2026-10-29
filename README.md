@@ -16,6 +16,7 @@ cp .env.example .env.local
 - `SMS_TOKEN` — Telnyx API key (Bearer token for outbound SMS)
 - `MY_NUMBER` — your Telnyx number (default `+16674218122`)
 - `TELNYX_SMS_API_URL` — optional (default `https://api.telnyx.com/v2/messages`)
+- `LOG_LEVEL` — optional (`debug` | `info` | `warn` | `error`; default `info` in production)
 
 3. Install and run:
 
@@ -52,3 +53,14 @@ Outbound sends create `pending` messages via `POST /api/messages/send`. Delivery
 ## Real-time
 
 The UI subscribes to `GET /api/events` (SSE). New inbound messages and status updates appear without refresh.
+
+## Cloud logging
+
+In production (`NODE_ENV=production`), logs are **one JSON object per line** on stdout/stderr. Platforms such as Vercel, Railway, Render, Fly.io, and AWS CloudWatch can search and filter these fields:
+
+- `level`, `message`, `timestamp`, `service` (`phone-telnyx`)
+- `module` (e.g. `api.webhooks.telnyx`)
+- `requestId` (correlate webhook/send requests; also returned in some API error responses)
+- Telnyx fields: `eventType`, `eventId`, `direction`, `telnyxMessageId`, `action`
+
+Message **text** is not logged. Set `LOG_LEVEL=debug` temporarily for more detail in cloud environments.

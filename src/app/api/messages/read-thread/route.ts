@@ -4,7 +4,10 @@ import { broadcastSmsEvent } from "@/lib/events";
 import { normalizePhone } from "@/lib/phone";
 import { serializeMessage } from "@/lib/serialize";
 import { Message } from "@/models/Message";
+import { logError, logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
+
+const log = logger.child({ module: "api.messages.read-thread" });
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ modified: result.modifiedCount });
   } catch (error) {
-    console.error("Read thread error:", error);
+    logError(log, "Read thread failed", error);
     return NextResponse.json({ error: "Failed to mark thread read" }, { status: 500 });
   }
 }

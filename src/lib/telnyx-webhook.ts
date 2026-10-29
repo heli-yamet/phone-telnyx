@@ -1,6 +1,7 @@
 import { getMyNumber } from "@/lib/config";
 import { connectDb } from "@/lib/db";
 import { broadcastSmsEvent } from "@/lib/events";
+import { type Logger, logger as rootLogger } from "@/lib/logger";
 import {
   isTerminalStatus,
   statusFromFinalized,
@@ -113,12 +114,14 @@ async function persistDetailAndBroadcast(
 }
 
 export async function handleTelnyxWebhook(
-  body: TelnyxWebhookBody
+  body: TelnyxWebhookBody,
+  log: Logger = rootLogger.child({ module: "telnyx-webhook" })
 ): Promise<{ ok: true; action: string }> {
   await connectDb();
   const myNumber = normalizePhone(getMyNumber());
   const payload = extractPayload(body);
   if (!payload) {
+    log.debug("Ignored webhook: not a message record");
     return { ok: true, action: "ignored_non_message" };
   }
 
@@ -129,6 +132,7 @@ export async function handleTelnyxWebhook(
   if (eventId) {
     const existingDetail = await Detail.findOne({ eventId }).lean();
     if (existingDetail) {
+      log.info("Duplicate Telnyx webhook event", { eventId, eventType });
       return { ok: true, action: "duplicate_event" };
     }
   }

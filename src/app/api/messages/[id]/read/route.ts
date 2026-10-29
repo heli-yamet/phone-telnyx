@@ -2,7 +2,10 @@ import { connectDb } from "@/lib/db";
 import { broadcastSmsEvent } from "@/lib/events";
 import { serializeMessage } from "@/lib/serialize";
 import { Message } from "@/models/Message";
+import { logError, logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
+
+const log = logger.child({ module: "api.messages.read" });
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +31,7 @@ export async function PATCH(
 
     return NextResponse.json({ message: dto });
   } catch (error) {
-    console.error("Mark read error:", error);
+    logError(log, "Mark read failed", error);
     return NextResponse.json({ error: "Failed to update message" }, { status: 500 });
   }
 }
