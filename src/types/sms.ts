@@ -18,12 +18,6 @@ export type ContactDTO = {
   phoneNumber: string;
 };
 
-export type SmsServerEvent =
-  | { type: "connected" }
-  | { type: "ping" }
-  | { type: "message.created"; message: MessageDTO }
-  | { type: "message.updated"; message: MessageDTO };
-
 export type ConversationSummary = {
   peer: string;
   lastText: string;

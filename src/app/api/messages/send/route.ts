@@ -1,6 +1,5 @@
 import { getMyNumber } from "@/lib/config";
 import { connectDb } from "@/lib/db";
-import { broadcastSmsEvent } from "@/lib/events";
 import { logError, logger, newRequestId } from "@/lib/logger";
 import { conversationKey, normalizePhone } from "@/lib/phone";
 import { serializeMessage } from "@/lib/serialize";
@@ -56,20 +55,11 @@ export async function POST(request: Request) {
       textLength: text.length,
     });
 
-    broadcastSmsEvent({
-      type: "message.created",
-      message: serializeMessage(message),
-    });
-
     try {
       const result = await sendSmsViaTelnyx({ from, to, text });
       if (result.telnyxMessageId) {
         message.telnyxMessageId = result.telnyxMessageId;
         await message.save();
-        broadcastSmsEvent({
-          type: "message.updated",
-          message: serializeMessage(message),
-        });
       }
       log.info("Telnyx send API accepted", {
         messageId: message._id.toString(),
@@ -78,10 +68,6 @@ export async function POST(request: Request) {
     } catch (sendError) {
       message.status = "failed";
       await message.save();
-      broadcastSmsEvent({
-        type: "message.updated",
-        message: serializeMessage(message),
-      });
       logError(log, "Telnyx send API failed", sendError, {
         messageId: message._id.toString(),
         from,

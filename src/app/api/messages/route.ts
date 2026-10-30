@@ -27,11 +27,20 @@ export async function GET(request: Request) {
       ];
     }
 
+    const updatedSince = searchParams.get("updatedSince");
+    if (updatedSince) {
+      const since = new Date(updatedSince);
+      if (!Number.isNaN(since.getTime())) {
+        filter.updatedAt = { $gte: since };
+      }
+    }
+
     const messages = await Message.find(filter).sort({ date: 1 }).limit(500);
 
     return NextResponse.json({
       myNumber,
       messages: messages.map((m) => serializeMessage(m)),
+      syncedAt: new Date().toISOString(),
     });
   } catch (error) {
     logError(log, "List messages failed", error);

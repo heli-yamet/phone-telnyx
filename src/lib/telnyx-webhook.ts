@@ -1,6 +1,5 @@
 import { getMyNumber } from "@/lib/config";
 import { connectDb } from "@/lib/db";
-import { broadcastSmsEvent } from "@/lib/events";
 import { type Logger, logger as rootLogger } from "@/lib/logger";
 import {
   isTerminalStatus,
@@ -8,7 +7,6 @@ import {
   webhookTimestamp,
 } from "@/lib/outbound-status";
 import { conversationKey, normalizePhone } from "@/lib/phone";
-import { serializeMessage } from "@/lib/serialize";
 import type { HydratedDocument } from "mongoose";
 import { Detail } from "@/models/Detail";
 import { Message, type IMessage } from "@/models/Message";
@@ -91,12 +89,11 @@ function applyWebhookDate(message: MessageDoc, at: Date): void {
   }
 }
 
-async function persistDetailAndBroadcast(
+async function persistDetail(
   message: MessageDoc,
   body: TelnyxWebhookBody,
   eventId: string | undefined,
-  telnyxMessageId: string | undefined,
-  created: boolean
+  telnyxMessageId: string | undefined
 ): Promise<void> {
   await Detail.create({
     messageId: message._id,
@@ -104,13 +101,6 @@ async function persistDetailAndBroadcast(
     telnyxMessageId,
     raw: body,
   });
-
-  const dto = serializeMessage(message);
-  broadcastSmsEvent(
-    created
-      ? { type: "message.created", message: dto }
-      : { type: "message.updated", message: dto }
-  );
 }
 
 export async function handleTelnyxWebhook(
@@ -169,7 +159,7 @@ export async function handleTelnyxWebhook(
       conversationKey: conversationKey(myNumber, peer),
     });
 
-    await persistDetailAndBroadcast(message, body, eventId, telnyxMessageId, true);
+    await persistDetail(message, body, eventId, telnyxMessageId);
     return { ok: true, action: "inbound_created" };
   }
 
@@ -220,7 +210,7 @@ export async function handleTelnyxWebhook(
         telnyxMessageId,
         conversationKey: conversationKey(myNumber, to),
       });
-      await persistDetailAndBroadcast(message, body, eventId, telnyxMessageId, true);
+      await persistDetail(message, body, eventId, telnyxMessageId);
       return {
         ok: true,
         action:
@@ -240,7 +230,7 @@ export async function handleTelnyxWebhook(
       }
       applyWebhookDate(message, webhookTimestamp(eventType, payload));
       await message.save();
-      await persistDetailAndBroadcast(message, body, eventId, telnyxMessageId, false);
+      await persistDetail(message, body, eventId, telnyxMessageId);
       return { ok: true, action: "outbound_sent" };
     }
 
@@ -250,7 +240,7 @@ export async function handleTelnyxWebhook(
       message.failureReason = final.failureReason;
       applyWebhookDate(message, webhookTimestamp(eventType, payload));
       await message.save();
-      await persistDetailAndBroadcast(message, body, eventId, telnyxMessageId, false);
+      await persistDetail(message, body, eventId, telnyxMessageId);
       return {
         ok: true,
         action:

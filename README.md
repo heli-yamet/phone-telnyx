@@ -1,6 +1,6 @@
 # Phone Telnyx
 
-Next.js app for sending and receiving SMS through Telnyx, with MongoDB persistence and real-time updates via Server-Sent Events (SSE).
+Next.js app for sending and receiving SMS through Telnyx, with MongoDB persistence and polling-based UI sync (Vercel-friendly).
 
 ## Setup
 
@@ -17,6 +17,7 @@ cp .env.example .env.local
 - `MY_NUMBER` — your Telnyx number (default `+16674218122`)
 - `TELNYX_SMS_API_URL` — optional (default `https://api.telnyx.com/v2/messages`)
 - `LOG_LEVEL` — optional (`debug` | `info` | `warn` | `error`; default `info` in production)
+- `NEXT_PUBLIC_MESSAGE_POLL_MS` — optional client poll interval in ms (default `4000`, minimum `1000`)
 
 3. Install and run:
 
@@ -50,9 +51,9 @@ The webhook:
 
 Outbound sends create `pending` messages via `POST /api/messages/send`. Delivery is confirmed when Telnyx posts an outbound webhook event.
 
-## Real-time
+## UI sync (polling)
 
-The UI subscribes to `GET /api/events` (SSE). New inbound messages and status updates appear without refresh.
+The UI polls `GET /api/messages` on an interval (default 4s). Incremental polls use `?updatedSince=<syncedAt>` so outbound status changes and new inbound messages appear without long-lived connections (works on Vercel). Refetch also runs when the tab becomes visible or the window gains focus.
 
 ## Cloud logging
 

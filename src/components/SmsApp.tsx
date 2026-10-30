@@ -1,7 +1,8 @@
 "use client";
 
 import { buildConversations, upsertMessage } from "@/lib/conversations";
-import type { ContactDTO, MessageDTO, SmsServerEvent } from "@/types/sms";
+import { getMessagePollIntervalMs } from "@/lib/poll-interval";
+import type { ContactDTO, MessageDTO } from "@/types/sms";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function formatTime(iso: string): string {
@@ -41,6 +42,8 @@ export default function SmsApp() {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const syncCursorRef = useRef<string | null>(null);
+  const pollIntervalMs = getMessagePollIntervalMs();
 
   const conversations = useMemo(
     () => buildConversations(messages),
@@ -58,15 +61,32 @@ export default function SmsApp() {
     [contacts]
   );
 
-  const refreshMessages = useCallback(async () => {
-    const res = await fetch("/api/messages");
+  const refreshMessages = useCallback(async (mode: "full" | "incremental" = "full") => {
+    const incremental = mode === "incremental" && syncCursorRef.current;
+    const url = incremental
+      ? `/api/messages?updatedSince=${encodeURIComponent(syncCursorRef.current!)}`
+      : "/api/messages";
+
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to load messages");
     const data = (await res.json()) as {
       myNumber: string;
       messages: MessageDTO[];
+      syncedAt?: string;
     };
+
     setMyNumber(data.myNumber);
-    setMessages(data.messages);
+    if (incremental && data.messages.length > 0) {
+      setMessages((prev) =>
+        data.messages.reduce((acc, msg) => upsertMessage(acc, msg), prev)
+      );
+    } else if (!incremental) {
+      setMessages(data.messages);
+    }
+
+    if (data.syncedAt) {
+      syncCursorRef.current = data.syncedAt;
+    }
   }, []);
 
   const refreshContacts = useCallback(async () => {
@@ -89,28 +109,32 @@ export default function SmsApp() {
   }, [refreshMessages, refreshContacts]);
 
   useEffect(() => {
-    const source = new EventSource("/api/events");
+    const poll = () => {
+      void refreshMessages("incremental").catch(() => {
+        /* keep polling; next full load on focus */
+      });
+    };
 
-    source.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as SmsServerEvent;
-        if (payload.type === "message.created") {
-          setMessages((prev) => upsertMessage(prev, payload.message));
-        }
-        if (payload.type === "message.updated") {
-          setMessages((prev) => upsertMessage(prev, payload.message));
-        }
-      } catch {
-        /* ignore malformed */
+    const intervalId = window.setInterval(poll, pollIntervalMs);
+
+    const onFocus = () => {
+      void refreshMessages("full").catch(() => undefined);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refreshMessages("incremental").catch(() => undefined);
       }
     };
 
-    source.onerror = () => {
-      /* EventSource reconnects automatically */
-    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
 
-    return () => source.close();
-  }, []);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [pollIntervalMs, refreshMessages]);
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
